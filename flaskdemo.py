@@ -19,22 +19,31 @@ def home():
 @app.route('/about')
 def about():
     """About page route."""
-    return "I am still working on this"
+    return render_template('about.html')
 
 
 @app.route('/search', methods=['POST', 'GET'])
 def search():
     """Search page route. Return either form page to search, or search results."""
     if request.method == 'POST':
-        session['search_term'] = request.form['search']
-        return redirect(url_for('results'))
-    return render_template("search.html")
+        query = request.form['query']
+        # remember the search term in the session (used by /results)
+        session['search_term'] = query
+        # use helper that handles PageError/DisambiguationError
+        page = get_page(query)
+        return render_template('results.html', page=page)
+        # alternatively, you could redirect to /results:
+        # return redirect(url_for('results'))
+    return render_template('search.html')
 
 
 @app.route('/results')
 def results():
     """Results page route. Render the search results."""
-    search_term = session['search_term']
+    search_term = session.get('search_term')
+    if not search_term:
+        # if someone hits /results directly without searching first
+        return redirect(url_for('search'))
     page = get_page(search_term)
     return render_template("results.html", page=page)
 
@@ -51,11 +60,11 @@ def get_page(search_term):
         # This is a disambiguation page; get the first real page (close enough)
         page_titles = wikipedia.search(search_term)
         # Sometimes the next page has the same name (different caps), so don't try the same again
-        if page_titles[1].lower() == page_titles[0].lower():
+        if len(page_titles) > 2 and page_titles[1].lower() == page_titles[0].lower():
             title = page_titles[2]
         else:
             title = page_titles[1]
-        page = get_page(wikipedia.page(title))
+        page = get_page(title)
     return page
 
 
